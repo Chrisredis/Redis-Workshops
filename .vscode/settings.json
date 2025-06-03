@@ -1,0 +1,10 @@
+{
+  "python.defaultInterpreterPath": ".venv/bin/python",
+  "jupyter.jupyterServerType": "local",
+  "jupyter.kernelsFilter": [
+    {
+      "name": ".venv",
+      "path": ".venv/bin/python"
+    }
+  ]
+}
