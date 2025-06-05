@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redis Active-Active Fraud Detection Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .header .subtitle {
+            color: #7f8c8d;
+            font-size: 16px;
+        }
+
+        .status-bar {
+            background: #2c3e50;
+            color: white;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #27ae60;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .store-panel {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .store-header {
+            padding: 20px;
+            color: white;
+            text-align: center;
+        }
+
+        .store-a .store-header {
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+        }
+
+        .store-b .store-header {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+        }
+
+        .store-header h2 {
+            margin-bottom: 5px;
+        }
+
+        .store-header .store-status {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .transactions-container {
+            max-height: 600px;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .transaction-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #3498db;
+            transition: all 0.3s ease;
+        }
+
+        .transaction-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .transaction-card.fraud {
+            border-left-color: #e74c3c;
+            background: #fdf2f2;
+        }
+
+        .transaction-card.return {
+            border-left-color: #f39c12;
+        }
+
+        .transaction-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .transaction-id {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .transaction-type {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .transaction-type.purchase {
+            background: #d5f4e6;
+            color: #27ae60;
+        }
+
+        .transaction-type.return {
+            background: #fef9e7;
+            color: #f39c12;
+        }
+
+        .transaction-type.fraud {
+            background: #fadbd8;
+            color: #e74c3c;
+        }
+
+        .transaction-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .detail-item {
+            font-size: 14px;
+        }
+
+        .detail-label {
+            color: #7f8c8d;
+            font-weight: 500;
+        }
+
+        .detail-value {
+            color: #2c3e50;
+            font-weight: 600;
+        }
+
+        .photo-verification {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+        }
+
+        .photo-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .photo-status.verified {
+            background: #d5f4e6;
+            color: #27ae60;
+        }
+
+        .photo-status.missing {
+            background: #fadbd8;
+            color: #e74c3c;
+        }
+
+        .customer-photo {
+            width: 60px;
+            height: 60px;
+            border-radius: 6px;
+            object-fit: cover;
+            border: 2px solid #ecf0f1;
+        }
+
+        .fraud-alerts {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 350px;
+            z-index: 1000;
+        }
+
+        .fraud-alert {
+            background: #e74c3c;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);
+            animation: slideIn 0.5s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .fraud-alert h4 {
+            margin-bottom: 8px;
+        }
+
+        .fraud-alert .alert-details {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .simultaneous-detection {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            margin: 20px;
+            padding: 20px;
+        }
+
+        .simultaneous-header {
+            background: linear-gradient(135deg, #8e44ad, #9b59b6);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .comparison-card {
+            border: 2px solid #ecf0f1;
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .comparison-card.legitimate {
+            border-color: #27ae60;
+            background: #f8fff9;
+        }
+
+        .comparison-card.fraudulent {
+            border-color: #e74c3c;
+            background: #fdf8f8;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .timestamp {
+            font-size: 12px;
+            color: #95a5a6;
+            margin-top: 5px;
+        }
+
+        .no-transactions {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛡️ Redis Active-Active Fraud Detection Dashboard</h1>
+        <p class="subtitle">Real-time monitoring of legitimate vs fraudulent return transactions</p>
+    </div>
+
+    <div class="status-bar">
+        <div class="status-indicator">
+            <div class="status-dot"></div>
+            <span>Real-time Monitoring Active</span>
+        </div>
+        <div id="connection-status">Connecting...</div>
+        <div id="last-update">Last update: Never</div>
+    </div>
+
+    <div class="main-container">
+        <!-- Store A - Legitimate Transactions -->
+        <div class="store-panel store-a">
+            <div class="store-header">
+                <h2>🏪 Store A - Legitimate POS</h2>
+                <p class="store-status">Photo verification enabled • Secure transactions</p>
+            </div>
+            <div class="transactions-container" id="store-a-transactions">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading transactions...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Store B - Compromised POS -->
+        <div class="store-panel store-b">
+            <div class="store-header">
+                <h2>🔓 Store B - Compromised POS</h2>
+                <p class="store-status">Security bypassed • Fraudulent attempts detected</p>
+            </div>
+            <div class="transactions-container" id="store-b-transactions">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading transactions...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Simultaneous Transaction Detection -->
+    <div id="simultaneous-detection" style="display: none;">
+        <div class="simultaneous-detection">
+            <div class="simultaneous-header">
+                <h3>🚨 SIMULTANEOUS RETURN ATTEMPTS DETECTED</h3>
+                <p>The same original transaction is being returned at both locations simultaneously</p>
+            </div>
+            <div id="simultaneous-content"></div>
+        </div>
+    </div>
+
+    <!-- Fraud Alerts -->
+    <div class="fraud-alerts" id="fraud-alerts"></div>
+
+    <script>
+        // Initialize Socket.IO connection
+        const socket = io();
+        
+        // Connection status
+        socket.on('connect', function() {
+            document.getElementById('connection-status').textContent = 'Connected';
+            console.log('Connected to fraud detection dashboard');
+        });
+
+        socket.on('disconnect', function() {
+            document.getElementById('connection-status').textContent = 'Disconnected';
+            console.log('Disconnected from dashboard');
+        });
+
+        // Handle transaction updates
+        socket.on('transaction_update', function(data) {
+            updateTransactions('store-a-transactions', data.store_a_transactions, 'Store A');
+            updateTransactions('store-b-transactions', data.store_b_transactions, 'Store B');
+            updateFraudAlerts(data.fraud_alerts);
+            updateSimultaneousDetection(data.simultaneous_attempts);
+            
+            const now = new Date();
+            document.getElementById('last-update').textContent = 
+                `Last update: ${now.toLocaleTimeString()}`;
+        });
+
+        function updateTransactions(containerId, transactions, storeName) {
+            const container = document.getElementById(containerId);
+            
+            if (!transactions || transactions.length === 0) {
+                container.innerHTML = `
+                    <div class="no-transactions">
+                        <p>No recent transactions</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = transactions.map(transaction => {
+                const isReturn = transaction.type === 'RETURN';
+                const isFraud = transaction.fraud_attempt || false;
+                const hasPhoto = transaction.has_photo;
+                
+                let cardClass = 'transaction-card';
+                if (isFraud) cardClass += ' fraud';
+                else if (isReturn) cardClass += ' return';
+
+                let typeClass = 'transaction-type';
+                if (isFraud) typeClass += ' fraud';
+                else if (isReturn) typeClass += ' return';
+                else typeClass += ' purchase';
+
+                const photoSection = hasPhoto ? `
+                    <div class="photo-verification">
+                        <span class="photo-status verified">✅ Photo Verified</span>
+                        ${transaction.photo_base64 ? 
+                            `<img src="data:image/jpeg;base64,${transaction.photo_base64}" 
+                                 class="customer-photo" alt="Customer Photo">` : 
+                            '<div class="customer-photo" style="background: #ecf0f1; display: flex; align-items: center; justify-content: center; font-size: 12px;">📷</div>'
+                        }
+                    </div>
+                ` : `
+                    <div class="photo-verification">
+                        <span class="photo-status missing">❌ No Photo Verification</span>
+                        <div class="customer-photo" style="background: #fadbd8; display: flex; align-items: center; justify-content: center; font-size: 12px;">🚫</div>
+                    </div>
+                `;
+
+                return `
+                    <div class="${cardClass}">
+                        <div class="transaction-header">
+                            <span class="transaction-id">${transaction.transaction_id}</span>
+                            <span class="${typeClass}">${isFraud ? 'FRAUD' : transaction.type}</span>
+                        </div>
+                        <div class="transaction-details">
+                            <div class="detail-item">
+                                <span class="detail-label">Customer:</span>
+                                <span class="detail-value">${transaction.customer_id}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Amount:</span>
+                                <span class="detail-value">$${Math.abs(parseFloat(transaction.amount)).toFixed(2)}</span>
+                            </div>
+                            ${transaction.original_transaction_id ? `
+                                <div class="detail-item">
+                                    <span class="detail-label">Original:</span>
+                                    <span class="detail-value">${transaction.original_transaction_id}</span>
+                                </div>
+                            ` : ''}
+                            <div class="detail-item">
+                                <span class="detail-label">Verification:</span>
+                                <span class="detail-value">${transaction.verification || 'Standard'}</span>
+                            </div>
+                        </div>
+                        ${photoSection}
+                        <div class="timestamp">
+                            ${new Date(transaction.timestamp * 1000).toLocaleString()}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateFraudAlerts(alerts) {
+            const container = document.getElementById('fraud-alerts');
+            
+            if (!alerts || alerts.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            container.innerHTML = alerts.slice(0, 3).map(alert => `
+                <div class="fraud-alert">
+                    <h4>🚨 ${alert.fraud_type}</h4>
+                    <div class="alert-details">
+                        <p><strong>Risk Level:</strong> ${alert.risk_level}</p>
+                        <p><strong>Transaction:</strong> ${alert.fraud_transaction_id}</p>
+                        <p><strong>Store:</strong> ${alert.store_id}</p>
+                        <p><strong>Time:</strong> ${new Date(alert.timestamp * 1000).toLocaleTimeString()}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateSimultaneousDetection(attempts) {
+            const container = document.getElementById('simultaneous-detection');
+            const content = document.getElementById('simultaneous-content');
+            
+            if (!attempts || attempts.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+
+            container.style.display = 'block';
+            
+            content.innerHTML = attempts.map(attempt => `
+                <div class="comparison-grid">
+                    <div class="comparison-card legitimate">
+                        <h4>✅ Legitimate Return (${attempt.legitimate_return.store_id})</h4>
+                        <p><strong>Transaction:</strong> ${attempt.legitimate_return.transaction_id}</p>
+                        <p><strong>Customer:</strong> ${attempt.legitimate_return.customer_id}</p>
+                        <p><strong>Photo Verified:</strong> ${attempt.legitimate_return.has_photo ? 'Yes' : 'No'}</p>
+                        <p><strong>Time:</strong> ${new Date(attempt.legitimate_return.timestamp * 1000).toLocaleString()}</p>
+                    </div>
+                    <div class="comparison-card fraudulent">
+                        <h4>🚨 Fraudulent Attempt (${attempt.fraudulent_return.store_id})</h4>
+                        <p><strong>Transaction:</strong> ${attempt.fraudulent_return.transaction_id}</p>
+                        <p><strong>Customer:</strong> ${attempt.fraudulent_return.customer_id}</p>
+                        <p><strong>Photo Verified:</strong> ${attempt.fraudulent_return.has_photo ? 'Yes' : 'No'}</p>
+                        <p><strong>Time:</strong> ${new Date(attempt.fraudulent_return.timestamp * 1000).toLocaleString()}</p>
+                        <p><strong>Time Difference:</strong> ${attempt.time_difference} seconds</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Request initial data
+        socket.emit('request_update');
+        
+        // Auto-refresh every 30 seconds
+        setInterval(() => {
+            socket.emit('request_update');
+        }, 30000);
+    </script>
+</body>
+</html>
