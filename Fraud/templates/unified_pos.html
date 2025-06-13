@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redis Fraud Detection - Unified POS</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            padding: 30px;
+        }
+        
+        .panel {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 25px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .panel h2 {
+            color: #495057;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .product-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            background: white;
+        }
+        
+        .product-item {
+            padding: 12px;
+            border-bottom: 1px solid #e9ecef;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .product-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .product-item.selected {
+            background-color: #667eea;
+            color: white;
+        }
+        
+        .product-item:last-child {
+            border-bottom: none;
+        }
+        
+        .camera-section {
+            text-align: center;
+        }
+        
+        .camera-display {
+            width: 100%;
+            max-width: 400px;
+            height: 300px;
+            background: #000;
+            border-radius: 10px;
+            margin: 20px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+            border: 3px solid #e9ecef;
+        }
+        
+        .camera-display img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 7px;
+        }
+        
+        .camera-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%);
+            color: white;
+        }
+        
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(86, 171, 47, 0.4);
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        
+        .btn-warning:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(245, 87, 108, 0.4);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .action-buttons {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        
+        .status-bar {
+            background: #f8f9fa;
+            padding: 15px 30px;
+            border-top: 1px solid #e9ecef;
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 600;
+        }
+        
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .photo-status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 600;
+        }
+        
+        .photo-captured {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .photo-none {
+            background: #f8f9fa;
+            color: #6c757d;
+            border: 1px solid #e9ecef;
+        }
+
+        @keyframes replicationProgress {
+            0% { width: 0%; }
+            100% { width: 100%; }
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 90%;
+            overflow-y: auto;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Redis Fraud Detection</h1>
+            <p>Unified POS System with Real Photo Capture</p>
+        </div>
+        
+        <div class="main-content">
+            <!-- Transaction Panel -->
+            <div class="panel">
+                <h2>📋 Transaction Details</h2>
+                
+                <div class="form-group">
+                    <label for="store">Store:</label>
+                    <select id="store">
+                        <option value="STORE_A">Store A</option>
+                        <option value="STORE_B">Store B</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="transaction-type">Transaction Type:</label>
+                    <select id="transaction-type">
+                        <option value="PURCHASE">Purchase</option>
+                        <option value="RETURN">Return</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="customer">Customer ID:</label>
+                    <input type="text" id="customer" value="CHRIS_001" placeholder="Enter customer ID">
+                </div>
+                
+                <div class="form-group">
+                    <label>Select Product:</label>
+                    <div class="product-list" id="product-list">
+                        <!-- Products will be loaded here -->
+                    </div>
+                </div>
+                
+                <div id="selected-product" class="alert alert-info" style="display: none;">
+                    No product selected
+                </div>
+            </div>
+            
+            <!-- Camera Panel -->
+            <div class="panel">
+                <h2>📷 Photo Verification</h2>
+                
+                <div class="camera-section">
+                    <div class="camera-display" id="camera-display">
+                        <span>Camera Preview<br>(Click Start Camera)</span>
+                    </div>
+                    
+                    <div class="camera-controls">
+                        <button class="btn btn-primary" id="start-camera">Start Camera</button>
+                        <button class="btn btn-success" id="capture-photo" disabled>Capture Photo</button>
+                        <button class="btn btn-warning" id="stop-camera" disabled>Stop Camera</button>
+                    </div>
+                    
+                    <div class="photo-status photo-none" id="photo-status">
+                        No photo captured
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+                <button class="btn btn-success" id="process-transaction">💳 Process Transaction</button>
+                <button class="btn btn-warning" id="simulate-fraud">🚨 Simulate Fraud (No Photo)</button>
+                <button class="btn btn-warning" id="simulate-photo-fraud">📷 Simulate Photo Fraud</button>
+                <button class="btn btn-primary" id="open-dashboard">📊 Open Dashboard</button>
+                <button class="btn btn-primary" id="clear-transaction">🔄 Clear/Reset</button>
+            </div>
+        </div>
+        
+        <div class="status-bar" id="status-bar">
+            Ready - Select product and capture photo to begin
+        </div>
+        
+        <!-- Alert container -->
+        <div id="alert-container"></div>
+
+        <!-- Transaction Results Modal -->
+        <div id="transaction-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000;">
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 15px; padding: 30px; max-width: 800px; width: 90%; max-height: 90%; overflow-y: auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 id="modal-title">Transaction Results</h2>
+                    <button onclick="closeModal()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+                </div>
+                <div id="modal-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedProduct = null;
+        let cameraActive = false;
+        let photoCapture = false;
+
+        // Load products
+        fetch('/api/products')
+            .then(response => response.json())
+            .then(products => {
+                const productList = document.getElementById('product-list');
+                Object.entries(products).forEach(([sku, product]) => {
+                    const item = document.createElement('div');
+                    item.className = 'product-item';
+                    item.dataset.sku = sku;
+                    item.innerHTML = `<strong>${product.name}</strong><br>$${product.price.toFixed(2)} - ${product.category}`;
+                    item.onclick = () => selectProduct(sku, product, item);
+                    productList.appendChild(item);
+                });
+            });
+
+        function selectProduct(sku, product, element) {
+            // Remove previous selection
+            document.querySelectorAll('.product-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            // Select new product
+            element.classList.add('selected');
+            selectedProduct = sku;
+            
+            const selectedDiv = document.getElementById('selected-product');
+            selectedDiv.style.display = 'block';
+            selectedDiv.className = 'alert alert-success';
+            selectedDiv.innerHTML = `Selected: <strong>${product.name}</strong> - $${product.price.toFixed(2)}`;
+            
+            updateStatus(`Product selected: ${product.name}`);
+        }
+
+        // Camera controls
+        document.getElementById('start-camera').onclick = function() {
+            fetch('/api/start_camera', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        cameraActive = true;
+                        document.getElementById('camera-display').innerHTML = 
+                            '<img src="/video_feed" alt="Camera Feed">';
+                        
+                        document.getElementById('start-camera').disabled = true;
+                        document.getElementById('capture-photo').disabled = false;
+                        document.getElementById('stop-camera').disabled = false;
+                        
+                        updateStatus('📷 Camera started - Position face and click Capture');
+                    } else {
+                        showAlert('error', data.message);
+                    }
+                });
+        };
+
+        document.getElementById('capture-photo').onclick = function() {
+            fetch('/api/capture_photo', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        photoCapture = true;
+                        document.getElementById('photo-status').className = 'photo-status photo-captured';
+                        document.getElementById('photo-status').textContent = '✅ Photo captured successfully';
+                        
+                        // Stop camera after capture
+                        stopCamera();
+                        updateStatus('📸 Photo captured and ready for transaction');
+                    } else {
+                        showAlert('error', data.message);
+                    }
+                });
+        };
+
+        document.getElementById('stop-camera').onclick = stopCamera;
+
+        function stopCamera() {
+            fetch('/api/stop_camera', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    cameraActive = false;
+                    document.getElementById('camera-display').innerHTML = 
+                        '<span>Camera Preview<br>(Stopped)</span>';
+                    
+                    document.getElementById('start-camera').disabled = false;
+                    document.getElementById('capture-photo').disabled = true;
+                    document.getElementById('stop-camera').disabled = true;
+                    
+                    updateStatus('📷 Camera stopped');
+                });
+        }
+
+        // Process transaction
+        document.getElementById('process-transaction').onclick = function() {
+            if (!selectedProduct) {
+                showAlert('error', 'Please select a product');
+                return;
+            }
+
+            const customer = document.getElementById('customer').value.trim();
+            if (!customer) {
+                showAlert('error', 'Please enter a customer ID');
+                return;
+            }
+
+            const transactionData = {
+                customer_id: customer,
+                product_sku: selectedProduct,
+                store_id: document.getElementById('store').value,
+                transaction_type: document.getElementById('transaction-type').value
+            };
+
+            updateStatus('💳 Processing transaction...');
+
+            fetch('/api/process_transaction', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(transactionData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Simple alert first, then modal
+                    showAlert('success', `✅ Transaction ${data.transaction_id} processed! Replication: ${data.details.replication_time_ms}ms`);
+                    showTransactionResults(data);
+                    clearTransaction();
+                } else {
+                    showAlert('error', data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Transaction error:', error);
+                showAlert('error', 'Transaction failed: ' + error.message);
+            });
+        };
+
+        function showTransactionResults(data) {
+            const details = data.details;
+
+            // Create a new window/tab with transaction results
+            const resultsWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes');
+
+            const resultsHTML = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Transaction Results</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+                        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+                        .header { text-align: center; margin-bottom: 30px; }
+                        .success { color: #28a745; }
+                        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin: 30px 0; }
+                        .card { background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #e9ecef; }
+                        .photo { text-align: center; }
+                        .photo img { max-width: 250px; border-radius: 8px; border: 3px solid #28a745; }
+                        .replication { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; margin: 20px 0; }
+                        .btn { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }
+                        .btn:hover { background: #0056b3; }
+                        .progress-bar { background: rgba(255,255,255,0.3); height: 6px; border-radius: 3px; margin-top: 10px; overflow: hidden; }
+                        .progress-fill { background: #28a745; height: 100%; width: 0%; border-radius: 3px; animation: fillProgress 2s ease-out forwards; }
+                        @keyframes fillProgress { to { width: 100%; } }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="header">
+                            <h1 class="success">✅ Transaction Successful!</h1>
+                            <h2>Transaction ID: ${data.transaction_id}</h2>
+                            <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
+                        </div>
+
+                        <div class="grid">
+                            <div class="card">
+                                <h3>📋 Transaction Details</h3>
+                                <p><strong>Customer:</strong> ${details.customer}</p>
+                                <p><strong>Product:</strong> ${details.product}</p>
+                                <p><strong>Amount:</strong> $${details.amount.toFixed(2)}</p>
+                                <p><strong>Store:</strong> ${details.source_store}</p>
+                                <p><strong>Photo Hash:</strong> ${details.photo_hash || 'N/A'}</p>
+                            </div>
+
+                            <div class="card photo">
+                                <h3>📷 Photo Verification</h3>
+                                ${details.photo_data ?
+                                    `<img src="data:image/jpeg;base64,${details.photo_data}" alt="Customer Photo">
+                                     <p class="success"><strong>✅ Photo Verified</strong></p>
+                                     <p>Face detection: Active</p>` :
+                                    `<div style="width: 200px; height: 150px; background: #e9ecef; border: 2px dashed #ccc; display: flex; align-items: center; justify-content: center; margin: 0 auto; border-radius: 8px;">
+                                     <span style="color: #6c757d;">No Photo Captured</span></div>
+                                     <p style="color: #dc3545;"><strong>❌ No Photo</strong></p>`
+                                }
+                            </div>
+                        </div>
+
+                        <div class="replication">
+                            <h3>🔄 Redis Replication Status</h3>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <p><strong>${details.source_store}</strong> → <strong>${details.target_store}</strong></p>
+                                    <p>Replication Time: <strong>${details.replication_time_ms}ms</strong></p>
+                                    <p>Status: <strong>✅ SYNCHRONIZED</strong></p>
+                                </div>
+                                <div style="font-size: 48px;">
+                                    ${details.replication_time_ms < 10 ? '⚡' : details.replication_time_ms < 50 ? '🔄' : '⏱️'}
+                                </div>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill"></div>
+                            </div>
+                            <p style="margin-top: 10px; font-size: 14px;">
+                                Performance: ${details.replication_time_ms < 10 ? 'EXCELLENT' : details.replication_time_ms < 50 ? 'GOOD' : 'ACCEPTABLE'}
+                            </p>
+                        </div>
+
+                        <div style="text-align: center; margin-top: 30px;">
+                            <button class="btn" onclick="window.close()">Close</button>
+                            <button class="btn" onclick="window.open('/dashboard', '_blank')" style="margin-left: 10px;">View Dashboard</button>
+                        </div>
+                    </div>
+                </body>
+                </html>
+            `;
+
+            resultsWindow.document.write(resultsHTML);
+            resultsWindow.document.close();
+        }
+
+        // Simulate fraud
+        document.getElementById('simulate-fraud').onclick = function() {
+            updateStatus('🚨 Simulating fraud attempt...');
+
+            fetch('/api/simulate_fraud', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showFraudResults(data);
+                    } else {
+                        showAlert('error', data.message);
+                    }
+                });
+        };
+
+        function showFraudResults(data) {
+            const fraud = data.fraud_details;
+
+            let modalContent = `
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h3 style="color: #dc3545;">🚨 FRAUD DETECTED & BLOCKED</h3>
+                    <p style="font-size: 18px; color: #666;">Transaction ID: <strong>${fraud.transaction_id}</strong></p>
+                </div>
+
+                <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 20px; border-radius: 10px; margin-bottom: 30px;">
+                    <h4 style="margin-bottom: 15px;">⚠️ Fraud Analysis</h4>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <p><strong>Fraud Score:</strong> ${fraud.fraud_score}/100</p>
+                            <p><strong>Risk Level:</strong> ${fraud.risk_level}</p>
+                            <p><strong>Action:</strong> ${fraud.action}</p>
+                        </div>
+                        <div style="font-size: 48px;">
+                            ${fraud.fraud_score > 80 ? '🚨' : '⚠️'}
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px;">
+                    <div>
+                        <h4>🔍 Fraud Indicators</h4>
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                            ${fraud.indicators.map(indicator => `<p>• ${indicator}</p>`).join('')}
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4>📷 Photo Analysis</h4>
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center;">
+                            ${fraud.fake_photo_data ?
+                                `<img src="data:image/jpeg;base64,${fraud.fake_photo_data}" style="max-width: 200px; border-radius: 8px; border: 2px solid #dc3545;">
+                                 <p style="color: #dc3545; font-weight: bold; margin-top: 10px;">❌ Fraudulent Photo</p>
+                                 <p style="font-size: 12px; color: #666;">Hash: ${fraud.photo_analysis.fraud_photo_hash || 'N/A'}</p>` :
+                                `<div style="width: 200px; height: 150px; background: #e9ecef; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin: 0 auto; border: 2px solid #dc3545;">
+                                 <span style="color: #dc3545;">❌ NO PHOTO</span></div>
+                                 <p style="color: #dc3545; font-weight: bold; margin-top: 10px;">Missing Photo</p>`
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                ${fraud.legitimate_comparison ? `
+                <div style="background: #d4edda; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                    <h4 style="color: #155724; margin-bottom: 15px;">✅ Legitimate Comparison</h4>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <p><strong>Legitimate Customer:</strong> ${fraud.legitimate_comparison.customer_id}</p>
+                            <p><strong>Photo Hash:</strong> ${fraud.legitimate_comparison.photo_hash || 'N/A'}</p>
+                            <p><strong>Hash Match:</strong> ${fraud.photo_analysis.hash_match ? '✅ MATCH' : '❌ MISMATCH'}</p>
+                        </div>
+                        <div style="color: #155724; font-size: 24px;">
+                            ${fraud.photo_analysis.hash_match ? '✅' : '❌'}
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
+
+                <div style="text-align: center;">
+                    <button onclick="closeModal()" class="btn btn-warning">Acknowledge Fraud Alert</button>
+                </div>
+            `;
+
+            document.getElementById('modal-title').textContent = 'Fraud Detection Alert';
+            document.getElementById('modal-content').innerHTML = modalContent;
+            document.getElementById('transaction-modal').style.display = 'block';
+        }
+
+        // Simulate photo fraud (hash mismatch)
+        document.getElementById('simulate-photo-fraud').onclick = function() {
+            updateStatus('📷 Simulating photo fraud (hash mismatch)...');
+
+            fetch('/api/simulate_photo_fraud', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showPhotoFraudResults(data);
+                    } else {
+                        showAlert('error', data.message);
+                    }
+                });
+        };
+
+        function showPhotoFraudResults(data) {
+            const fraud = data.fraud_details;
+
+            let modalContent = `
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h3 style="color: #dc3545;">🚨 CRITICAL: PHOTO FRAUD DETECTED</h3>
+                    <p style="font-size: 18px; color: #666;">Transaction ID: <strong>${fraud.transaction_id}</strong></p>
+                    <p style="color: #dc3545; font-weight: bold;">IDENTITY THEFT ATTEMPT</p>
+                </div>
+
+                <div style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; padding: 20px; border-radius: 10px; margin-bottom: 30px;">
+                    <h4 style="margin-bottom: 15px;">⚠️ Critical Fraud Analysis</h4>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <p><strong>Fraud Score:</strong> ${fraud.fraud_score}/100</p>
+                            <p><strong>Risk Level:</strong> ${fraud.risk_level}</p>
+                            <p><strong>Fraud Type:</strong> ${fraud.fraud_type}</p>
+                        </div>
+                        <div style="font-size: 48px;">🚨</div>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px;">
+                    <div>
+                        <h4>📷 Photo Hash Analysis</h4>
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                            <p><strong>Fraudster Hash:</strong><br><code style="font-size: 12px;">${fraud.photo_analysis.fraudster_photo_hash || 'N/A'}</code></p>
+                            <p><strong>Legitimate Hash:</strong><br><code style="font-size: 12px;">${fraud.photo_analysis.legitimate_photo_hash || 'N/A'}</code></p>
+                            <p style="color: #dc3545; font-weight: bold;">❌ HASH MISMATCH</p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4>🎭 Fraudster Photo</h4>
+                        <div style="background: #f8d7da; padding: 15px; border-radius: 8px; text-align: center;">
+                            ${fraud.fraudster_photo_data ?
+                                `<img src="data:image/jpeg;base64,${fraud.fraudster_photo_data}" style="max-width: 200px; border-radius: 8px; border: 3px solid #dc3545;">
+                                 <p style="color: #dc3545; font-weight: bold; margin-top: 10px;">❌ IMPOSTER</p>` :
+                                `<div style="width: 200px; height: 150px; background: #e9ecef; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin: 0 auto; border: 3px solid #dc3545;">
+                                 <span style="color: #dc3545;">❌ SUSPICIOUS</span></div>`
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <div style="text-align: center;">
+                    <button onclick="closeModal()" class="btn btn-warning">Acknowledge Critical Alert</button>
+                </div>
+            `;
+
+            document.getElementById('modal-title').textContent = 'CRITICAL: Photo Fraud Alert';
+            document.getElementById('modal-content').innerHTML = modalContent;
+            document.getElementById('transaction-modal').style.display = 'block';
+        }
+
+        // Open dashboard
+        document.getElementById('open-dashboard').onclick = function() {
+            window.open('/dashboard', '_blank');
+            updateStatus('🌐 Opening transaction dashboard...');
+        };
+
+        // Clear transaction
+        document.getElementById('clear-transaction').onclick = clearTransaction;
+
+        function clearTransaction() {
+            selectedProduct = null;
+            photoCapture = false;
+            
+            // Clear product selection
+            document.querySelectorAll('.product-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            document.getElementById('selected-product').style.display = 'none';
+            
+            // Clear photo status
+            document.getElementById('photo-status').className = 'photo-status photo-none';
+            document.getElementById('photo-status').textContent = 'No photo captured';
+            
+            // Stop camera if running
+            if (cameraActive) {
+                stopCamera();
+            }
+            
+            updateStatus('🔄 Transaction cleared - Ready for new transaction');
+        }
+
+        function updateStatus(message) {
+            const now = new Date().toLocaleTimeString();
+            document.getElementById('status-bar').textContent = `${now} - ${message}`;
+        }
+
+        function showAlert(type, message) {
+            const alertContainer = document.getElementById('alert-container');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.innerHTML = message;
+            
+            alertContainer.appendChild(alert);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                alert.remove();
+            }, 5000);
+        }
+
+        function closeModal() {
+            document.getElementById('transaction-modal').style.display = 'none';
+        }
+
+        // Initial status
+        updateStatus('Ready - Select product and capture photo to begin');
+    </script>
+</body>
+</html>

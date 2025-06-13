@@ -8,17 +8,32 @@ including Redis settings, fraud detection thresholds, and feature parameters.
 import os
 from typing import Dict, List
 
-# Redis Configuration
+# Redis Cloud Configuration (Default)
+# Using Redis Cloud for persistent fraud detection data
 REDIS_CONFIG = {
-    'host': os.getenv('REDIS_HOST', 'localhost'),
-    'port': int(os.getenv('REDIS_PORT', 6379)),
+    'host': os.getenv('REDIS_HOST', 'redis-15306.c329.us-east4-1.gce.redns.redis-cloud.com'),
+    'port': int(os.getenv('REDIS_PORT', 15306)),
+    'username': os.getenv('REDIS_USERNAME', 'default'),
+    'password': os.getenv('REDIS_PASSWORD', 'ftswOcgMB8dLCnjbKMMDBg3DNnpi1KO5'),
     'db': int(os.getenv('REDIS_DB', 0)),
-    'password': os.getenv('REDIS_PASSWORD', None),
+    'decode_responses': True,
     'socket_timeout': 5,
     'socket_connect_timeout': 5,
     'retry_on_timeout': True,
     'health_check_interval': 30
 }
+
+# Local Redis Configuration (uncomment if needed)
+# REDIS_CONFIG = {
+#     'host': 'localhost',
+#     'port': 6379,
+#     'db': 0,
+#     'password': None,
+#     'socket_timeout': 5,
+#     'socket_connect_timeout': 5,
+#     'retry_on_timeout': True,
+#     'health_check_interval': 30
+# }
 
 # Index Names
 INDEX_NAMES = {
